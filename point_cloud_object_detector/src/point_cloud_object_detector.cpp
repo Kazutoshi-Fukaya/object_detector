@@ -82,22 +82,23 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
         // merged cloud
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr merged_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr merged_cls_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
-        for(const auto &bbox : msg->bounding_boxes){
-            std::vector<pcl::PointXYZRGB> points;
-            for(const auto &p : cloud_->points) points.emplace_back(p);
 
-            std::vector<std::vector<pcl::PointXYZRGB>> rearranged_points(cloud_->height,std::vector<pcl::PointXYZRGB>());
-            if(points.size() == cloud_->width*cloud_->height){
-                for(int i = 0; i < cloud_->height; i++){
-                    for(int j = 0; j < cloud_->width; j++){
-                        rearranged_points.at(i).emplace_back(points.at(i*cloud_->width+j));
-                    }
+        std::vector<pcl::PointXYZRGB> points;
+        for(const auto &p : cloud_->points) points.emplace_back(p);
+
+        std::vector<std::vector<pcl::PointXYZRGB>> rearranged_points(cloud_->height,std::vector<pcl::PointXYZRGB>());
+        if(points.size() == cloud_->width*cloud_->height){
+            for(int i = 0; i < cloud_->height; i++){
+                for(int j = 0; j < cloud_->width; j++){
+                    rearranged_points.at(i).emplace_back(points.at(i*cloud_->width+j));
                 }
-            }else{
-                ROS_WARN("points size is not cloud size");
-                return;
             }
+        }else{
+            ROS_WARN("points size is not cloud size");
+            return;
+        }
 
+        for(const auto &bbox : msg->bounding_boxes){
             std::vector<pcl::PointXYZRGB> values;
             if(!(bbox.xmin == 0 && bbox.xmax == 0)){
                 for(int x = bbox.xmin; x < bbox.xmax; x++){
