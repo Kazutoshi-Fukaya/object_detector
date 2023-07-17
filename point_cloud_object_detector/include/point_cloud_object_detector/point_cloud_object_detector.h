@@ -15,6 +15,7 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/point_types_conversion.h>
+#include <pcl/filters/random_sample.h>
 
 // Eigen
 #include <Eigen/Dense>
@@ -65,11 +66,14 @@ private:
 
     // parameter
     std::string CAMERA_FRAME_ID_;
+    bool IS_SAMPLING_;
     bool IS_CLUSTERING_;
     bool IS_PCL_TF_;
     bool IS_DEBUG_;
     int HZ_;
+    int SAMPLING_NUM_;
     static const int CLUSTER_NUM_ = 3;
+    double SAMPLING_RATIO_;
     double CLUSTER_TOLERANCE_;
     double MIN_CLUSTER_SIZE_;
 };

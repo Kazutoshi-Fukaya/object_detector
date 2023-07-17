@@ -10,6 +10,11 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
     private_nh_.param("CAMERA_FRAME_ID",CAMERA_FRAME_ID_,{std::string("base_link")});
     private_nh_.param("HZ",HZ_,{10});
 
+    // sampling param
+    private_nh_.param("IS_SAMPLING",IS_SAMPLING_,{true});
+    private_nh_.param("SAMPLING_NUM",SAMPLING_NUM_,{100000});
+    private_nh_.param("SAMPLING_RATIO",SAMPLING_RATIO_,{0.1});
+
     // clustring param
     private_nh_.param("IS_CLUSTERING",IS_CLUSTERING_,{true});
     private_nh_.param("CLUSTER_TOLERANCE",CLUSTER_TOLERANCE_,{0.02});
@@ -41,6 +46,13 @@ void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPt
     // cloud_->clear();
     pcl::fromROSMsg(*msg,*cloud_);
     pc_frame_id_ = msg->header.frame_id;
+    // if(IS_SAMPLING_){
+    //     pcl::shared_ptr<pcl::RandomSample<pcl::PointXYZRGB>> sampler(new pcl::RandomSample<pcl::PointXYZRGB>);
+    //     sampler->setInputCloud(cloud_);
+    //     sampler->setSample(SAMPLING_NUM_);
+    //     sampler->filter(*cloud_);
+    //     // ROS_INFO("cloud size: %ld",cloud_->size());
+    // }
     if(IS_PCL_TF_){
         geometry_msgs::TransformStamped transform_stamped;
         try{
@@ -58,6 +70,7 @@ void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPt
 
 void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBoxesConstPtr& msg)
 {
+    ROS_INFO("received bbox at %f",ros::Time::now().toSec());
     if(has_received_pc_){
         ros::Time now_time = ros::Time::now();
 
@@ -102,6 +115,12 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
 
                 double x, y, z;              
                 if(IS_CLUSTERING_){
+                    if(IS_SAMPLING_){
+                        pcl::shared_ptr<pcl::RandomSample<pcl::PointXYZRGB>> sampler(new pcl::RandomSample<pcl::PointXYZRGB>);
+                        sampler->setInputCloud(obj_cloud);
+                        sampler->setSample((int)(obj_cloud->size()*SAMPLING_RATIO_));
+                        sampler->filter(*obj_cloud);
+                    }
                     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cls_obj_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
                     clustering(obj_cloud,cls_obj_cloud);
                     if(cls_obj_cloud->points.empty()) return;
@@ -122,12 +141,12 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
                 double theta = std::atan2(position.z,position.x) - M_PI/2;
 
-                std::cout << "(NAME,X,Y,Z): (" << bbox.Class << "," 
-                                               << position.x << "," 
-                                               << position.y << "," 
-                                               << position.z << ")" << std::endl;
-                std::cout << "Distance[m]: : " << d << std::endl;
-                std::cout << "Angle[rad] : " << theta << std::endl << std::endl;
+                // std::cout << "(NAME,X,Y,Z): (" << bbox.Class << "," 
+                //                                << position.x << "," 
+                //                                << position.y << "," 
+                //                                << position.z << ")" << std::endl;
+                // std::cout << "Distance[m]: : " << d << std::endl;
+                // std::cout << "Angle[rad] : " << theta << std::endl << std::endl;
             }
             else{
                 ROS_WARN("No bbox range");
@@ -150,6 +169,7 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 cls_cloud_msg.header.frame_id = pc_frame_id_;
                 cls_cloud_msg.header.stamp = now_time;
                 cls_pc_pub_.publish(cls_cloud_msg);
+                ROS_INFO("published clustered pointcloud at %f",now_time.toSec());
             }
         }
     }

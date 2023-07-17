@@ -1,20 +1,28 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="is_debug"      default="true" />
     <arg name="is_pcl_tf"     default="false" />
-    <arg name="is_clustering" default="false" />
+    <arg name="is_clustering" default="true" />
+    <arg name="is_sampling"   default="true" />
+    <arg name="sampling_num"  default="100000" />
+    <arg name="sampling_ratio"  default="0.1" />
     <arg name="hz"            default="10" />
 
     <!-- point_cloud_object_detector_node -->
     <node pkg="point_cloud_object_detector" type="point_cloud_object_detector_node" name="object_detector" output="screen" >
         <!-- remap -->
-        <remap from="pc_in"    to="/camera/depth_registered/points" />
+        <remap from="pc_in"    to="/front_cam/camera/depth_registered/points" />
         <remap from="bbox_in"  to="/darknet_ros/bounding_boxes" />
         <remap from="obj_out"  to="/object_positions" />
 
         <!-- params -->
         <param name="HZ"            value="$(arg hz)" />
+        <param name="IS_DEBUG"      value="$(arg is_debug)" />
         <param name="IS_CLUSTERING" value="$(arg is_clustering)" />
         <param name="IS_PCL_TF"     value="$(arg is_pcl_tf)" />
+        <param name="IS_SAMPLING"   value="$(arg is_sampling)" />
+        <param name="SAMPLING_NUM"  value="$(arg sampling_num)" />
+        <param name="SAMPLING_RATIO"  value="$(arg sampling_ratio)" />
     </node>
 
 </launch>
