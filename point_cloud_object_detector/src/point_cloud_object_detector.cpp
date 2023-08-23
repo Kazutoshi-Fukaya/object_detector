@@ -17,8 +17,15 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
 
     // clustring param
     private_nh_.param("IS_CLUSTERING",IS_CLUSTERING_,{true});
+    private_nh_.param("USE_MINCUT",USE_MINCUT_,{false});
     private_nh_.param("CLUSTER_TOLERANCE",CLUSTER_TOLERANCE_,{0.02});
     private_nh_.param("MIN_CLUSTER_SIZE",MIN_CLUSTER_SIZE_,{100});
+
+    // mincut param
+    private_nh_.param("MIN_CUT_NEIGHBORS",MIN_CUT_NEIGHBORS_,{20});
+    private_nh_.param("MIN_CUT_SIGMA",MIN_CUT_SIGMA_,{0.05});
+    private_nh_.param("MIN_CUT_RADIUS",MIN_CUT_RADIUS_,{0.20});
+    private_nh_.param("MIN_CUT_SOURCE_WEIGHT",MIN_CUT_SOURCE_WEIGHT_,{0.6});
 
     pc_sub_ = nh_.subscribe("pc_in",1,&PointCloudObjectDetector::pc_callback,this);
     bbox_sub_ = nh_.subscribe("bbox_in",1,&PointCloudObjectDetector::bbox_callback,this);
@@ -100,11 +107,19 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
 
         for(const auto &bbox : msg->bounding_boxes){
             std::vector<pcl::PointXYZRGB> values;
+            // for mincut
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr center_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
             if(!(bbox.xmin == 0 && bbox.xmax == 0)){
                 for(int x = bbox.xmin; x < bbox.xmax; x++){
                     for(int y = bbox.ymin; y < bbox.ymax; y++){
                         values.emplace_back(rearranged_points.at(y).at(x));
                     }
+                }
+
+                if(IS_CLUSTERING_ && USE_MINCUT_){
+                    int cx = (bbox.xmin + bbox.xmax)/2;
+                    int cy = (bbox.ymin + bbox.ymax)/2;
+                    center_cloud->push_back(rearranged_points.at(cy).at(cx));
                 }
                 
                 pcl::PointCloud<pcl::PointXYZRGB>::Ptr obj_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -123,7 +138,8 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                         sampler->filter(*obj_cloud);
                     }
                     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cls_obj_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
-                    clustering(obj_cloud,cls_obj_cloud);
+                    if(USE_MINCUT_) mincut_clustering(obj_cloud,cls_obj_cloud,center_cloud);
+                    else clustering(obj_cloud,cls_obj_cloud);
                     if(cls_obj_cloud->points.empty()) return;
                     calc_position(cls_obj_cloud,x,y,z);
                     *merged_cls_cloud += *cls_obj_cloud;
@@ -219,6 +235,35 @@ void PointCloudObjectDetector::clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr
     ex->setIndices(tmp_clustered_indices);
     ex->filter(*tmp_cloud);
     output_cloud = tmp_cloud;
+}
+
+void PointCloudObjectDetector::mincut_clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& center_cloud)
+{
+    pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+    tree->setInputCloud(input_cloud);
+
+    std::vector<pcl::PointIndices> indices;
+    pcl::shared_ptr<pcl::MinCutSegmentation<pcl::PointXYZRGB>> seg(new pcl::MinCutSegmentation<pcl::PointXYZRGB>);
+    seg->setSigma(MIN_CUT_SIGMA_);
+    seg->setRadius(MIN_CUT_RADIUS_);
+    seg->setNumberOfNeighbours(MIN_CUT_NEIGHBORS_);
+    seg->setSourceWeight(MIN_CUT_SOURCE_WEIGHT_);
+    seg->setSearchMethod(tree);
+    seg->setInputCloud(input_cloud);
+    seg->setForegroundPoints(center_cloud);
+    seg->extract(indices);
+    
+    pcl::shared_ptr<pcl::ExtractIndices<pcl::PointXYZRGB>> ex(new pcl::ExtractIndices<pcl::PointXYZRGB>);
+    ex->setInputCloud(input_cloud);
+    ex->setNegative(false);
+
+    pcl::PointIndices::Ptr tmp_clustered_indices (new pcl::PointIndices);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr tmp_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    *tmp_clustered_indices = indices[1];
+    ex->setIndices(tmp_clustered_indices);
+    ex->filter(*tmp_cloud);
+    output_cloud = tmp_cloud;
+    ROS_INFO("mincut clustering at %f",ros::Time::now().toSec());
 }
 
 void PointCloudObjectDetector::calc_position(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,double& x,double& y,double& z)

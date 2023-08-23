@@ -2,10 +2,12 @@
 <launch>
     <arg name="is_debug"      default="true" />
     <arg name="is_pcl_tf"     default="false" />
-    <arg name="is_clustering" default="false" />
-    <arg name="is_sampling"   default="false" />
+    <arg name="is_clustering" default="true" />
+    <arg name="is_sampling"   default="true" />
+    <arg name="use_mincut"    default="true" />
     <arg name="sampling_num"  default="100000" />
-    <arg name="sampling_ratio"  default="0.1" />
+    <arg name="sampling_ratio"  default="0.3" />
+    <arg name="min_cluster_size"  default="30" />
     <arg name="hz"            default="10" />
 
     <!-- point_cloud_object_detector_node -->
@@ -17,10 +19,12 @@
 
         <!-- params -->
         <param name="HZ"            value="$(arg hz)" />
+        <param name="MIN_CLUSTER_SIZE"  value="$(arg min_cluster_size)" />
         <param name="IS_DEBUG"      value="$(arg is_debug)" />
         <param name="IS_CLUSTERING" value="$(arg is_clustering)" />
         <param name="IS_PCL_TF"     value="$(arg is_pcl_tf)" />
         <param name="IS_SAMPLING"   value="$(arg is_sampling)" />
+        <param name="USE_MINCUT"    value="$(arg use_mincut)" />
         <param name="SAMPLING_NUM"  value="$(arg sampling_num)" />
         <param name="SAMPLING_RATIO"  value="$(arg sampling_ratio)" />
     </node>

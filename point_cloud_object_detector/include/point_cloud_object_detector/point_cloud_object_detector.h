@@ -16,6 +16,7 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/point_types_conversion.h>
 #include <pcl/filters/random_sample.h>
+#include <pcl/segmentation/min_cut_segmentation.h>
 
 // Eigen
 #include <Eigen/Dense>
@@ -37,6 +38,7 @@ private:
     
     void convert_from_vec_to_pc(std::vector<pcl::PointXYZRGB>& vec,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& pc);
     void clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud);
+    void mincut_clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& center_cloud);
     void calc_position(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,double& x,double& y,double& z);
 
     // node handle
@@ -70,12 +72,17 @@ private:
     bool IS_CLUSTERING_;
     bool IS_PCL_TF_;
     bool IS_DEBUG_;
+    bool USE_MINCUT_;
     int HZ_;
     int SAMPLING_NUM_;
+    int MIN_CUT_NEIGHBORS_;
     static const int CLUSTER_NUM_ = 3;
     double SAMPLING_RATIO_;
     double CLUSTER_TOLERANCE_;
     double MIN_CLUSTER_SIZE_;
+    double MIN_CUT_SIGMA_;
+    double MIN_CUT_RADIUS_;
+    double MIN_CUT_SOURCE_WEIGHT_;
 };
 } // object_detector
 
