@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+    <include file="$(find ros_utils)/launch/20230527.launch"/>
+
+    <!-- darknet_ros -->
+    <include file="$(find darknet_ros)/launch/dkan.launch" />
+
+    <!-- point_cloud_object_detector_node -->
+    <include file="$(find point_cloud_object_detector)/launch/point_cloud_object_detector.launch" >
+        <arg name="is_debug"      default="true" />
+        <arg name="is_pcl_tf"     default="false" />
+        <arg name="is_clustering" default="true" />
+        <arg name="is_sampling"   default="true" />
+        <arg name="use_mincut"    default="false" />
+        <arg name="sampling_num"  default="100000" />
+        <arg name="sampling_ratio"  default="0.3" />
+        <arg name="min_cluster_size"  default="30" />
+        <arg name="hz"            default="10" />
+    </include>
+</launch>
