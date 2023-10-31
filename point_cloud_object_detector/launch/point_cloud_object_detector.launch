@@ -8,6 +8,7 @@
     <arg name="sampling_num"  default="100000" />
     <arg name="sampling_ratio"  default="0.3" />
     <arg name="min_cluster_size"  default="30" />
+    <arg name="use_img_msg"   default="true" />
     <arg name="hz"            default="10" />
 
     <!-- point_cloud_object_detector_node -->
