@@ -27,11 +27,21 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
     private_nh_.param("MIN_CUT_RADIUS",MIN_CUT_RADIUS_,{0.20});
     private_nh_.param("MIN_CUT_SOURCE_WEIGHT",MIN_CUT_SOURCE_WEIGHT_,{0.6});
 
+    // image param
+    private_nh_.param("USE_IMG_MSG",USE_IMG_MSG_,{false});
+
     pc_sub_ = nh_.subscribe("pc_in",1,&PointCloudObjectDetector::pc_callback,this);
     bbox_sub_ = nh_.subscribe("bbox_in",1,&PointCloudObjectDetector::bbox_callback,this);
+    img_sub_ = nh_.subscribe("img_in",1,&PointCloudObjectDetector::img_callback,this);
     
     obj_pub_ = nh_.advertise<object_detector_msgs::ObjectPositions>("obj_out",1);
     
+    private_nh_.param("USE_IMG_MSG",USE_IMG_MSG_,{false});
+    if(USE_IMG_MSG_){
+        obj_img_pub_ = nh_.advertise<object_detector_msgs::ObjectPositionsWithImage>("obj_img_out",1);
+        obj_img_debug_pub_ = nh_.advertise<sensor_msgs::Image>("obj_img_debug_out",1);
+    }
+
     private_nh_.param("IS_DEBUG",IS_DEBUG_,{false});
     if(IS_DEBUG_){
         pc_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("pc_out",1);
@@ -85,6 +95,11 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
         object_detector_msgs::ObjectPositions positions;
         positions.header.frame_id = CAMERA_FRAME_ID_;
         positions.header.stamp = now_time;
+
+        // object positions with image
+        object_detector_msgs::ObjectPositionsWithImage positions_with_image;
+        positions_with_image.header.frame_id = CAMERA_FRAME_ID_;
+        positions_with_image.header.stamp = now_time;
 
         // merged cloud
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr merged_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -155,6 +170,21 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 position.z = z;
                 positions.object_position.emplace_back(position);
 
+                // object_position_with_image
+                if(USE_IMG_MSG_ && has_received_img_){
+                    object_detector_msgs::ObjectPositionWithImage position_with_image;
+                    cv::Mat obj_img = cv_ptr_->image(cv::Rect(bbox.xmin,bbox.ymin,bbox.xmax-bbox.xmin,bbox.ymax-bbox.ymin));
+                    position_with_image.img = *cv_bridge::CvImage(std_msgs::Header(),"bgr8",obj_img).toImageMsg();
+                    position_with_image.img.header.frame_id = CAMERA_FRAME_ID_;
+                    position_with_image.img.header.stamp = now_time;
+                    position_with_image.Class = bbox.Class;
+                    position_with_image.probability = bbox.probability;
+                    position_with_image.x = x;
+                    position_with_image.y = y;
+                    position_with_image.z = z;
+                    positions_with_image.object_positions_with_img.emplace_back(position_with_image);
+                }
+
                 double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
                 double theta = std::atan2(position.z,position.x) - M_PI/2;
 
@@ -172,6 +202,13 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
         }
         if(positions.object_position.empty()) return;
         obj_pub_.publish(positions);
+
+        if(USE_IMG_MSG_ && has_received_img_){
+            // publish object positions with image
+            if(positions_with_image.object_positions_with_img.empty()) return;
+            obj_img_pub_.publish(positions_with_image);
+            obj_img_debug_pub_.publish(positions_with_image.object_positions_with_img.at(0).img);
+        }
 
         if(IS_DEBUG_){
             sensor_msgs::PointCloud2 cloud_msg;
@@ -191,7 +228,21 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
         }
     }
     has_received_pc_ = false;
+    has_received_img_ = false;
     cloud_->clear();
+}
+
+void PointCloudObjectDetector::img_callback(const sensor_msgs::ImageConstPtr& msg)
+{
+    try
+    {
+        cv_ptr_ = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::BGR8);
+    }
+    catch(cv_bridge::Exception& ex){
+        ROS_ERROR("cv_bridge exception: %s",ex.what());
+        return;
+    }
+    has_received_img_ = true;
 }
 
 void PointCloudObjectDetector::convert_from_vec_to_pc(std::vector<pcl::PointXYZRGB>& vec,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& pc)
