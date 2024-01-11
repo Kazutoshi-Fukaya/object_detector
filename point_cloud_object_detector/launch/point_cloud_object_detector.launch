@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="camera_frame_id" default="front_cam_link" />
     <arg name="is_debug"      default="true" />
     <arg name="is_pcl_tf"     default="false" />
     <arg name="is_clustering" default="true" />
@@ -9,6 +10,7 @@
     <arg name="sampling_ratio"  default="0.3" />
     <arg name="min_cluster_size"  default="30" />
     <arg name="use_img_msg"   default="true" />
+    <arg name="error_per_distance" default="0.05" />
     <arg name="hz"            default="10" />
 
     <!-- point_cloud_object_detector_node -->
@@ -22,6 +24,7 @@
 
         <!-- params -->
         <param name="HZ"            value="$(arg hz)" />
+        <param name="CAMERA_FRAME_ID" value="$(arg camera_frame_id)" />
         <param name="MIN_CLUSTER_SIZE"  value="$(arg min_cluster_size)" />
         <param name="IS_DEBUG"      value="$(arg is_debug)" />
         <param name="IS_CLUSTERING" value="$(arg is_clustering)" />
@@ -31,6 +34,7 @@
         <param name="SAMPLING_NUM"  value="$(arg sampling_num)" />
         <param name="SAMPLING_RATIO"  value="$(arg sampling_ratio)" />
         <param name="USE_IMG_MSG"   value="$(arg use_img_msg)" />
+        <param name="ERROR_PER_DISTANCE" value="$(arg error_per_distance)" />
     </node>
 
 </launch>

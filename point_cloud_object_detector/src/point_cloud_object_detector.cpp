@@ -30,13 +30,16 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
     // image param
     private_nh_.param("USE_IMG_MSG",USE_IMG_MSG_,{false});
 
+    // error param
+    private_nh_.param("ERROR_PER_DISTANCE",ERROR_PER_DISTANCE_,{0.05});
+
     pc_sub_ = nh_.subscribe("pc_in",1,&PointCloudObjectDetector::pc_callback,this);
     bbox_sub_ = nh_.subscribe("bbox_in",1,&PointCloudObjectDetector::bbox_callback,this);
     img_sub_ = nh_.subscribe("img_in",1,&PointCloudObjectDetector::img_callback,this);
     
     obj_pub_ = nh_.advertise<object_detector_msgs::ObjectPositions>("obj_out",1);
     
-    private_nh_.param("USE_IMG_MSG",USE_IMG_MSG_,{false});
+    // private_nh_.param("USE_IMG_MSG",USE_IMG_MSG_,{false});
     if(USE_IMG_MSG_){
         obj_img_pub_ = nh_.advertise<object_detector_msgs::ObjectPositionsWithImage>("obj_img_out",1);
         obj_img_debug_pub_ = nh_.advertise<sensor_msgs::Image>("obj_img_debug_out",1);
@@ -87,7 +90,7 @@ void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPt
 
 void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBoxesConstPtr& msg)
 {
-    ROS_INFO("received bbox at %f",ros::Time::now().toSec());
+    // ROS_INFO("received bbox at %f",ros::Time::now().toSec());
     if(has_received_pc_){
         ros::Time now_time = ros::Time::now();
 
@@ -170,6 +173,9 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 position.z = z;
                 positions.object_position.emplace_back(position);
 
+                double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
+                double theta = std::atan2(position.z,position.x) - M_PI/2;
+
                 // object_position_with_image
                 if(USE_IMG_MSG_ && has_received_img_){
                     object_detector_msgs::ObjectPositionWithImage position_with_image;
@@ -179,14 +185,15 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                     position_with_image.img.header.stamp = now_time;
                     position_with_image.Class = bbox.Class;
                     position_with_image.probability = bbox.probability;
+                    position_with_image.error = ERROR_PER_DISTANCE_*d;
                     position_with_image.x = x;
                     position_with_image.y = y;
                     position_with_image.z = z;
                     positions_with_image.object_positions_with_img.emplace_back(position_with_image);
                 }
 
-                double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
-                double theta = std::atan2(position.z,position.x) - M_PI/2;
+                // double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
+                // double theta = std::atan2(position.z,position.x) - M_PI/2;
 
                 // std::cout << "(NAME,X,Y,Z): (" << bbox.Class << "," 
                 //                                << position.x << "," 
@@ -223,7 +230,7 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 cls_cloud_msg.header.frame_id = pc_frame_id_;
                 cls_cloud_msg.header.stamp = now_time;
                 cls_pc_pub_.publish(cls_cloud_msg);
-                ROS_INFO("published clustered pointcloud at %f",now_time.toSec());
+                // ROS_INFO("published clustered pointcloud at %f",now_time.toSec());
             }
         }
     }

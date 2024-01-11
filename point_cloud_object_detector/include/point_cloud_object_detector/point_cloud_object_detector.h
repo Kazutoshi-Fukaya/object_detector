@@ -101,6 +101,7 @@ private:
     double MIN_CUT_SIGMA_;
     double MIN_CUT_RADIUS_;
     double MIN_CUT_SOURCE_WEIGHT_;
+    double ERROR_PER_DISTANCE_;
 };
 } // object_detector
 
