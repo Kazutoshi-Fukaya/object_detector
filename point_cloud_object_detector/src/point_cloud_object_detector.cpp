@@ -59,6 +59,8 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
         listener_.reset(new tf2_ros::TransformListener(*buffer_));
         broadcaster_.reset(new tf2_ros::TransformBroadcaster);
     }
+
+    load_object_classes();
 }
 
 void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
@@ -124,6 +126,8 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
         }
 
         for(const auto &bbox : msg->bounding_boxes){
+            if(!is_valid_class(bbox.Class)) continue;
+
             std::vector<pcl::PointXYZRGB> values;
             // for mincut
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr center_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -250,6 +254,34 @@ void PointCloudObjectDetector::img_callback(const sensor_msgs::ImageConstPtr& ms
         return;
     }
     has_received_img_ = true;
+}
+
+void PointCloudObjectDetector::load_object_classes()
+{
+    std::string yaml_file_name;
+    private_nh_.param("YAML_FILE_NAME",yaml_file_name,{std::string("object_classes")});
+    XmlRpc::XmlRpcValue object_classes;
+    if(!private_nh_.getParam(yaml_file_name.c_str(),object_classes)){
+        ROS_WARN("Could not load %s",yaml_file_name.c_str());
+        return;
+    }
+
+    ROS_ASSERT(object_classes.getType() == XmlRpc::XmlRpcValue::TypeArray);
+    for(int i = 0; i < object_classes.size(); i++){
+        ROS_ASSERT(object_classes[i].getType() == XmlRpc::XmlRpcValue::TypeString);
+        object_classes_.emplace_back(static_cast<std::string>(object_classes[i]));
+        std::cout << object_classes_.at(i) << std::endl;
+    }
+
+    ROS_INFO("Loaded %s",yaml_file_name.c_str());
+}
+
+bool PointCloudObjectDetector::is_valid_class(const std::string& class_name)
+{
+    for(const auto &c : object_classes_){
+        if(c == class_name) return true;
+    }
+    return false;
 }
 
 void PointCloudObjectDetector::convert_from_vec_to_pc(std::vector<pcl::PointXYZRGB>& vec,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& pc)

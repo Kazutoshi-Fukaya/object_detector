@@ -35,6 +35,9 @@
         <param name="SAMPLING_RATIO"  value="$(arg sampling_ratio)" />
         <param name="USE_IMG_MSG"   value="$(arg use_img_msg)" />
         <param name="ERROR_PER_DISTANCE" value="$(arg error_per_distance)" />
+
+        <!-- rosparams -->
+        <rosparam command="load" file="$(find point_cloud_object_detector)/config/params/object_classes.yaml" />
     </node>
 
 </launch>

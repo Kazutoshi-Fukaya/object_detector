@@ -42,7 +42,11 @@ private:
     void pc_callback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void bbox_callback(const darknet_ros_msgs::BoundingBoxesConstPtr& msg);
     void img_callback(const sensor_msgs::ImageConstPtr& msg);
+
+    void load_object_classes();
     
+    bool is_valid_class(const std::string& class_name);
+
     void convert_from_vec_to_pc(std::vector<pcl::PointXYZRGB>& vec,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& pc);
     void clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud);
     void mincut_clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& center_cloud);
@@ -82,6 +86,9 @@ private:
     std::string pc_frame_id_;
     bool has_received_pc_;
     bool has_received_img_;
+
+    // object classes
+    std::vector<std::string> object_classes_;
 
     // parameter
     std::string CAMERA_FRAME_ID_;
