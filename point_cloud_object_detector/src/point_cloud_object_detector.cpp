@@ -32,6 +32,11 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
 
     // error param
     private_nh_.param("ERROR_PER_DISTANCE",ERROR_PER_DISTANCE_,{0.05});
+    private_nh_.param("SD_FACTOR",SD_FACTOR_,{0.025});
+
+    // pos correction param
+    private_nh_.param("CORRECT_POS",CORRECT_POS_,{true});
+    private_nh_.param("POS_CORRECTION_FACTOR",POS_CORRECTION_FACTOR_,{0.3});
 
     pc_sub_ = nh_.subscribe("pc_in",1,&PointCloudObjectDetector::pc_callback,this);
     bbox_sub_ = nh_.subscribe("bbox_in",1,&PointCloudObjectDetector::bbox_callback,this);
@@ -94,17 +99,20 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
 {
     // ROS_INFO("received bbox at %f",ros::Time::now().toSec());
     if(has_received_pc_){
-        ros::Time now_time = ros::Time::now();
+        // ros::Time now_time = ros::Time::now();
+        ros::Time bbox_time = msg->image_header.stamp;
 
         // object positions
         object_detector_msgs::ObjectPositions positions;
         positions.header.frame_id = CAMERA_FRAME_ID_;
-        positions.header.stamp = now_time;
+        // positions.header.stamp = now_time;
+        positions.header.stamp = bbox_time;
 
         // object positions with image
         object_detector_msgs::ObjectPositionsWithImage positions_with_image;
         positions_with_image.header.frame_id = CAMERA_FRAME_ID_;
-        positions_with_image.header.stamp = now_time;
+        // positions_with_image.header.stamp = now_time;
+        positions_with_image.header.stamp = bbox_time;
 
         // merged cloud
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr merged_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -163,6 +171,7 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                     if(USE_MINCUT_) mincut_clustering(obj_cloud,cls_obj_cloud,center_cloud);
                     else clustering(obj_cloud,cls_obj_cloud);
                     if(cls_obj_cloud->points.empty()) return;
+                    // std::cout << "clustered cloud width: " << cls_obj_cloud->width << " object cloud width: " << obj_cloud->width << std::endl;
                     calc_position(cls_obj_cloud,x,y,z);
                     *merged_cls_cloud += *cls_obj_cloud;
                 }
@@ -177,7 +186,9 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 position.z = z;
                 positions.object_position.emplace_back(position);
 
-                double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
+                // double d = std::sqrt(std::pow(position.x,2) + std::pow(position.z,2));
+                // double d = std::sqrt(std::pow(position.x,2) + std::pow(position.y,2) + std::pow(position.z,2));
+                double d = std::sqrt(position.x*position.x + position.y*position.y + position.z*position.z);
                 double theta = std::atan2(position.z,position.x) - M_PI/2;
 
                 // object_position_with_image
@@ -186,10 +197,12 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                     cv::Mat obj_img = cv_ptr_->image(cv::Rect(bbox.xmin,bbox.ymin,bbox.xmax-bbox.xmin,bbox.ymax-bbox.ymin));
                     position_with_image.img = *cv_bridge::CvImage(std_msgs::Header(),"bgr8",obj_img).toImageMsg();
                     position_with_image.img.header.frame_id = CAMERA_FRAME_ID_;
-                    position_with_image.img.header.stamp = now_time;
+                    // position_with_image.img.header.stamp = now_time;
+                    position_with_image.img.header.stamp = bbox_time;
                     position_with_image.Class = bbox.Class;
                     position_with_image.probability = bbox.probability;
                     position_with_image.error = ERROR_PER_DISTANCE_*d;
+                    position_with_image.sd = SD_FACTOR_*d;
                     position_with_image.x = x;
                     position_with_image.y = y;
                     position_with_image.z = z;
@@ -225,14 +238,16 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
             sensor_msgs::PointCloud2 cloud_msg;
             pcl::toROSMsg(*merged_cloud,cloud_msg);
             cloud_msg.header.frame_id = pc_frame_id_;
-            cloud_msg.header.stamp = now_time;
+            // cloud_msg.header.stamp = now_time;
+            cloud_msg.header.stamp = bbox_time;
             pc_pub_.publish(cloud_msg);
 
             if(IS_CLUSTERING_){
                 sensor_msgs::PointCloud2 cls_cloud_msg;
                 pcl::toROSMsg(*merged_cls_cloud,cls_cloud_msg);
                 cls_cloud_msg.header.frame_id = pc_frame_id_;
-                cls_cloud_msg.header.stamp = now_time;
+                // cls_cloud_msg.header.stamp = now_time;
+                cls_cloud_msg.header.stamp = bbox_time;
                 cls_pc_pub_.publish(cls_cloud_msg);
                 // ROS_INFO("published clustered pointcloud at %f",now_time.toSec());
             }

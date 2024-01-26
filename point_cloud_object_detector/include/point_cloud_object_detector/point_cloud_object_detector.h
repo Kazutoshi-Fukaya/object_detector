@@ -98,6 +98,7 @@ private:
     bool IS_DEBUG_;
     bool USE_MINCUT_;
     bool USE_IMG_MSG_;
+    bool CORRECT_POS_;
     int HZ_;
     int SAMPLING_NUM_;
     int MIN_CUT_NEIGHBORS_;
@@ -109,6 +110,8 @@ private:
     double MIN_CUT_RADIUS_;
     double MIN_CUT_SOURCE_WEIGHT_;
     double ERROR_PER_DISTANCE_;
+    double POS_CORRECTION_FACTOR_;  //correction distance = bbox_width * POS_CORRECTION_FACTOR_
+    double SD_FACTOR_;              //standard deviation = distance * SD_FACTOR_
 };
 } // object_detector
 
