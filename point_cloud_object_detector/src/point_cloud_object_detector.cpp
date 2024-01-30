@@ -168,6 +168,7 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                 obj_cloud->points.resize(obj_cloud->width*obj_cloud->height);
                 // convert_from_vec_to_pc(values,obj_cloud);
                 convert_from_indices_to_pc(bbox_indices,cloud_,obj_cloud);
+                // trim_pc(cloud_,obj_cloud,bbox.xmin,bbox.xmax,bbox.ymin,bbox.ymax);
                 *merged_cloud += *obj_cloud;
                 for(const auto &i : bbox_indices) obj_points_indices.emplace_back(i);
 
@@ -346,6 +347,27 @@ void PointCloudObjectDetector::convert_from_indices_to_pc(std::vector<int>& indi
     }
 }
 
+void PointCloudObjectDetector::trim_pc(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,int x_min,int x_max,int y_min,int y_max)
+{
+    pcl::shared_ptr<pcl::ExtractIndices<pcl::PointXYZRGB>> t_ex(new pcl::ExtractIndices<pcl::PointXYZRGB>);
+    t_ex->setInputCloud(input_cloud);
+    t_ex->setNegative(false);
+    
+    size_t row_start = y_min;
+    size_t col_start = x_min;
+    size_t nb_rows = y_max - y_min + 1;
+    size_t nb_cols = x_max - x_min + 1;
+
+    t_ex->setIndices(row_start,col_start,nb_rows,nb_cols);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr tmp_trim_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    t_ex->filter(*tmp_trim_cloud);
+    // std::cout << "tmp cloud size: " << tmp_cloud->size() << " tmp cloud width: " << tmp_cloud->width << " tmp cloud height: " << tmp_cloud->height << std::endl;
+    // tmp_cloud->width = nb_cols;
+    // tmp_cloud->height = nb_rows;
+    output_cloud = tmp_trim_cloud;
+    // std::cout << "output cloud size: " << output_cloud->size() << std::endl;
+}
+
 void PointCloudObjectDetector::clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud)
 {
     pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
@@ -402,61 +424,82 @@ void PointCloudObjectDetector::mincut_clustering(pcl::PointCloud<pcl::PointXYZRG
     ROS_INFO("mincut clustering at %f",ros::Time::now().toSec());
 }
 
+// void PointCloudObjectDetector::separate_pc_by_indices(std::vector<int>& indices,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& other_cloud)
+// {
+//     // too heavy!!
+//     //
+//     std::vector<int> other_indices;
+//     other_indices.reserve(input_cloud->points.size());
+//     std::vector<int> target_indices;
+//     target_indices.reserve(indices.size());
+//     for(int i = 0; i < input_cloud->points.size(); i++){
+//         bool is_target = false;
+//         for(const auto &j : indices){
+//             if(i == j){
+//                 is_target = true;
+//                 break;
+//             }
+//         }
+//         if(is_target) target_indices.emplace_back(i);
+//         else other_indices.emplace_back(i);
+//     }
+//     //
+//     // resize
+//     if(target_cloud->points.size() != target_indices.size()){
+//         target_cloud->width = target_indices.size();
+//         target_cloud->height = 1;
+//         target_cloud->points.resize(target_cloud->width*target_cloud->height);
+//     }
+//     if(other_cloud->points.size() != other_indices.size()){
+//         other_cloud->width = other_indices.size();
+//         other_cloud->height = 1;
+//         other_cloud->points.resize(other_cloud->width*other_cloud->height);
+//     }
+//     //
+//     // set target cloud
+//     int count = 0;
+//     for(const auto &i : target_indices){
+//         target_cloud->points.at(count).x = input_cloud->points.at(i).x;
+//         target_cloud->points.at(count).y = input_cloud->points.at(i).y;
+//         target_cloud->points.at(count).z = input_cloud->points.at(i).z;
+//         target_cloud->points.at(count).r = input_cloud->points.at(i).r;
+//         target_cloud->points.at(count).g = input_cloud->points.at(i).g;
+//         target_cloud->points.at(count).b = input_cloud->points.at(i).b;
+//         count++;
+//     }
+//     //
+//     // set other cloud
+//     // count = 0;
+//     // for(const auto &i : other_indices){
+//     //     other_cloud->points.at(count).x = input_cloud->points.at(i).x;
+//     //     other_cloud->points.at(count).y = input_cloud->points.at(i).y;
+//     //     other_cloud->points.at(count).z = input_cloud->points.at(i).z;
+//     //     other_cloud->points.at(count).r = input_cloud->points.at(i).r;
+//     //     other_cloud->points.at(count).g = input_cloud->points.at(i).g;
+//     //     other_cloud->points.at(count).b = input_cloud->points.at(i).b;
+//     //     count++;
+//     // }
+// }
+
 void PointCloudObjectDetector::separate_pc_by_indices(std::vector<int>& indices,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& other_cloud)
 {
-    // too heavy!!
+    pcl::shared_ptr<pcl::ExtractIndices<pcl::PointXYZRGB>> t_ex(new pcl::ExtractIndices<pcl::PointXYZRGB>);
+    t_ex->setInputCloud(input_cloud);
+    t_ex->setNegative(false);
+    
+    pcl::PointIndices::Ptr tmp_target_indices (new pcl::PointIndices);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr tmp_target_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    // *tmp_target_indices->indices = indices;
+    for(const auto &i : indices) tmp_target_indices->indices.push_back(i);
+    t_ex->setIndices(tmp_target_indices);
+    t_ex->filter(*tmp_target_cloud);
+    target_cloud = tmp_target_cloud;
 
-    std::vector<int> other_indices;
-    other_indices.reserve(input_cloud->points.size());
-    std::vector<int> target_indices;
-    target_indices.reserve(indices.size());
-    for(int i = 0; i < input_cloud->points.size(); i++){
-        bool is_target = false;
-        for(const auto &j : indices){
-            if(i == j){
-                is_target = true;
-                break;
-            }
-        }
-        if(is_target) target_indices.emplace_back(i);
-        else other_indices.emplace_back(i);
-    }
-
-    // resize
-    if(target_cloud->points.size() != target_indices.size()){
-        target_cloud->width = target_indices.size();
-        target_cloud->height = 1;
-        target_cloud->points.resize(target_cloud->width*target_cloud->height);
-    }
-    if(other_cloud->points.size() != other_indices.size()){
-        other_cloud->width = other_indices.size();
-        other_cloud->height = 1;
-        other_cloud->points.resize(other_cloud->width*other_cloud->height);
-    }
-
-    // set target cloud
-    int count = 0;
-    for(const auto &i : target_indices){
-        target_cloud->points.at(count).x = input_cloud->points.at(i).x;
-        target_cloud->points.at(count).y = input_cloud->points.at(i).y;
-        target_cloud->points.at(count).z = input_cloud->points.at(i).z;
-        target_cloud->points.at(count).r = input_cloud->points.at(i).r;
-        target_cloud->points.at(count).g = input_cloud->points.at(i).g;
-        target_cloud->points.at(count).b = input_cloud->points.at(i).b;
-        count++;
-    }
-
-    // set other cloud
-    // count = 0;
-    // for(const auto &i : other_indices){
-    //     other_cloud->points.at(count).x = input_cloud->points.at(i).x;
-    //     other_cloud->points.at(count).y = input_cloud->points.at(i).y;
-    //     other_cloud->points.at(count).z = input_cloud->points.at(i).z;
-    //     other_cloud->points.at(count).r = input_cloud->points.at(i).r;
-    //     other_cloud->points.at(count).g = input_cloud->points.at(i).g;
-    //     other_cloud->points.at(count).b = input_cloud->points.at(i).b;
-    //     count++;
-    // }
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr tmp_other_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    t_ex->setIndices(tmp_target_indices);
+    t_ex->setNegative(true);
+    t_ex->filter(*tmp_other_cloud);
+    other_cloud = tmp_other_cloud;
 }
 
 void PointCloudObjectDetector::calc_position(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,double& x,double& y,double& z)

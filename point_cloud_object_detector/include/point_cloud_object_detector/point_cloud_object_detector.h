@@ -49,6 +49,7 @@ private:
 
     void convert_from_vec_to_pc(std::vector<pcl::PointXYZRGB>& vec,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& pc);
     void convert_from_indices_to_pc(std::vector<int>& indices,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud);
+    void trim_pc(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,int x_min,int x_max,int y_min,int y_max);
     void clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud);
     void mincut_clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& center_cloud);
     void separate_pc_by_indices(std::vector<int>& indices,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& other_cloud);
