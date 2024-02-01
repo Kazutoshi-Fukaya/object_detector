@@ -27,6 +27,8 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
     private_nh_.param("MIN_CUT_RADIUS",MIN_CUT_RADIUS_,{0.20});
     private_nh_.param("MIN_CUT_SOURCE_WEIGHT",MIN_CUT_SOURCE_WEIGHT_,{0.6});
 
+    private_nh_.param("PUB_STATIC_PC",PUB_STATIC_PC_,{true});
+
     // image param
     private_nh_.param("USE_IMG_MSG",USE_IMG_MSG_,{false});
 
@@ -56,6 +58,9 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
         if(IS_CLUSTERING_){
             cls_pc_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("cls_pc_out",1);
         }
+        if(PUB_STATIC_PC_){
+            static_pc_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("static_pc_out",1);
+        }
     }
 
     private_nh_.param("IS_PCL_TF",IS_PCL_TF_,{false});
@@ -65,14 +70,21 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
         broadcaster_.reset(new tf2_ros::TransformBroadcaster);
     }
 
+    get_pc_ = false;
+
+    // initialize point cloud
+    cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
+    static_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
+
     load_object_classes();
 }
 
 void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
-    // cloud_->clear();
+    cloud_->clear();
     pcl::fromROSMsg(*msg,*cloud_);
     pc_frame_id_ = msg->header.frame_id;
+    pc_stamp_ = msg->header.stamp;
     // if(IS_SAMPLING_){
     //     pcl::shared_ptr<pcl::RandomSample<pcl::PointXYZRGB>> sampler(new pcl::RandomSample<pcl::PointXYZRGB>);
     //     sampler->setInputCloud(cloud_);
@@ -83,7 +95,8 @@ void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPt
     if(IS_PCL_TF_){
         geometry_msgs::TransformStamped transform_stamped;
         try{
-            transform_stamped = buffer_->lookupTransform(CAMERA_FRAME_ID_,msg->header.frame_id,ros::Time(0));
+            // transform_stamped = buffer_->lookupTransform(CAMERA_FRAME_ID_,msg->header.frame_id,ros::Time(0));
+            transform_stamped = buffer_->lookupTransform(CAMERA_FRAME_ID_,msg->header.frame_id,msg->header.stamp);
         }
         catch(tf2::TransformException& ex){
             ROS_WARN("%s", ex.what());
@@ -93,6 +106,7 @@ void PointCloudObjectDetector::pc_callback(const sensor_msgs::PointCloud2ConstPt
         pcl::transformPointCloud(*cloud_,*cloud_,transform);
     }
     has_received_pc_ = true;
+    get_pc_ = true;
 }
 
 void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBoxesConstPtr& msg)
@@ -116,7 +130,7 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr merged_cls_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 
         // other cloud
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr other_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+        // pcl::PointCloud<pcl::PointXYZRGB>::Ptr other_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 
         // std::cout << "cloud_ points type: " << typeid(cloud_->points).name() << std::endl;
         // std::cout << "cloud_ point type: " << typeid(cloud_->points.at(0)).name() << std::endl;
@@ -256,22 +270,29 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
             sensor_msgs::PointCloud2 cloud_msg;
             pcl::toROSMsg(*merged_cloud,cloud_msg);
             cloud_msg.header.frame_id = pc_frame_id_;
-            cloud_msg.header.stamp = bbox_time;
+            // cloud_msg.header.stamp = bbox_time;
+            cloud_msg.header.stamp = pc_stamp_;
             pc_pub_.publish(cloud_msg);
 
             if(IS_CLUSTERING_){
                 sensor_msgs::PointCloud2 cls_cloud_msg;
                 pcl::toROSMsg(*merged_cls_cloud,cls_cloud_msg);
                 cls_cloud_msg.header.frame_id = pc_frame_id_;
-                cls_cloud_msg.header.stamp = bbox_time;
+                // cls_cloud_msg.header.stamp = bbox_time;
+                cls_cloud_msg.header.stamp = pc_stamp_;
                 cls_pc_pub_.publish(cls_cloud_msg);
                 // ROS_INFO("published clustered pointcloud at %f",now_time.toSec());
+            }
+
+            if(PUB_STATIC_PC_){
+                separate_pc_by_indices(obj_points_indices,cloud_,merged_cloud,static_cloud_);
+                static_pc_stamp_ = pc_stamp_;
             }
         }
     }
     has_received_pc_ = false;
     has_received_img_ = false;
-    cloud_->clear();
+    // cloud_->clear();
 }
 
 void PointCloudObjectDetector::img_callback(const sensor_msgs::ImageConstPtr& msg)
@@ -285,6 +306,34 @@ void PointCloudObjectDetector::img_callback(const sensor_msgs::ImageConstPtr& ms
         return;
     }
     has_received_img_ = true;
+}
+
+void PointCloudObjectDetector::publish_static_pc()
+{
+    std::cout << "publish static pc at " << ros::Time::now() << std::endl;
+    sensor_msgs::PointCloud2 static_cloud_msg;
+    if(static_cloud_->points.empty())
+    {
+        std::cout << "There is no static cloud" << std::endl;
+        if(cloud_->points.empty()){
+            ROS_WARN("cloud is empty");
+            return;
+        }
+        else{
+            pcl::toROSMsg(*cloud_,static_cloud_msg);
+            static_cloud_msg.header.frame_id = pc_frame_id_;
+            static_cloud_msg.header.stamp = pc_stamp_;
+        }
+    }
+    else{
+        std::cout << "There is static cloud" << std::endl;
+        pcl::toROSMsg(*static_cloud_,static_cloud_msg);
+        static_cloud_msg.header.frame_id = pc_frame_id_;
+        static_cloud_msg.header.stamp = static_pc_stamp_;
+    }
+
+    static_pc_pub_.publish(static_cloud_msg);
+    static_cloud_->clear();
 }
 
 void PointCloudObjectDetector::load_object_classes()
@@ -523,6 +572,9 @@ void PointCloudObjectDetector::process()
 {
     ros::Rate rate(HZ_);
     while(ros::ok()){
+        if(get_pc_ && IS_DEBUG_ && PUB_STATIC_PC_){
+            publish_static_pc();
+        }
         ros::spinOnce();
         rate.sleep();
     }

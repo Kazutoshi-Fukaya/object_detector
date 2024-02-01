@@ -43,6 +43,8 @@ private:
     void bbox_callback(const darknet_ros_msgs::BoundingBoxesConstPtr& msg);
     void img_callback(const sensor_msgs::ImageConstPtr& msg);
 
+    void publish_static_pc();
+
     void load_object_classes();
     
     bool is_valid_class(const std::string& class_name);
@@ -70,9 +72,15 @@ private:
     ros::Publisher cls_pc_pub_;
     ros::Publisher obj_img_pub_;
     ros::Publisher obj_img_debug_pub_;
+    ros::Publisher static_pc_pub_;
 
     // point cloud
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_;
+    bool get_pc_;
+
+    // publish cloud
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr static_cloud_;
+    ros::Time static_pc_stamp_;
 
     // camera image
     // sensor_msgs::Image img_;
@@ -87,6 +95,7 @@ private:
 
     // buffer
     std::string pc_frame_id_;
+    ros::Time pc_stamp_;
     bool has_received_pc_;
     bool has_received_img_;
 
@@ -102,6 +111,7 @@ private:
     bool USE_MINCUT_;
     bool USE_IMG_MSG_;
     bool CORRECT_POS_;
+    bool PUB_STATIC_PC_;
     int HZ_;
     int SAMPLING_NUM_;
     int MIN_CUT_NEIGHBORS_;
