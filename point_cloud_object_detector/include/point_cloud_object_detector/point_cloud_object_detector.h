@@ -56,6 +56,7 @@ private:
     void mincut_clustering(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& center_cloud);
     void separate_pc_by_indices(std::vector<int>& indices,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr& other_cloud);
     void calc_position(pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,double& x,double& y,double& z);
+    double calc_credibility(double error);
 
     // node handle
     ros::NodeHandle nh_;
@@ -125,6 +126,7 @@ private:
     double ERROR_PER_DISTANCE_;
     double POS_CORRECTION_FACTOR_;  //correction distance = bbox_width * POS_CORRECTION_FACTOR_
     double SD_FACTOR_;              //standard deviation = distance * SD_FACTOR_
+    double CREDIBILITY_FACTOR_PER_ERROR_;   //credibility = exp(-error * CREDIBILITY_FACTOR_PER_ERROR_)
 };
 } // object_detector
 

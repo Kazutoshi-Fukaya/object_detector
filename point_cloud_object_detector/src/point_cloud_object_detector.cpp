@@ -35,8 +35,9 @@ PointCloudObjectDetector::PointCloudObjectDetector() :
     // error param
     private_nh_.param("ERROR_PER_DISTANCE",ERROR_PER_DISTANCE_,{0.05});
     private_nh_.param("SD_FACTOR",SD_FACTOR_,{0.025});
+    private_nh_.param("CREDIBILITY_FACTOR_PER_ERROR",CREDIBILITY_FACTOR_PER_ERROR_,{2.0});
 
-    // pos correction param
+    // pos correction param (unused)
     private_nh_.param("CORRECT_POS",CORRECT_POS_,{true});
     private_nh_.param("POS_CORRECTION_FACTOR",POS_CORRECTION_FACTOR_,{0.3});
 
@@ -229,9 +230,11 @@ void PointCloudObjectDetector::bbox_callback(const darknet_ros_msgs::BoundingBox
                     position_with_image.img.header.frame_id = CAMERA_FRAME_ID_;
                     // position_with_image.img.header.stamp = now_time;
                     position_with_image.img.header.stamp = bbox_time;
+                    double error = ERROR_PER_DISTANCE_*d;
                     position_with_image.Class = bbox.Class;
                     position_with_image.probability = bbox.probability;
-                    position_with_image.error = ERROR_PER_DISTANCE_*d;
+                    position_with_image.credibility = calc_credibility(error);
+                    position_with_image.error = error;
                     position_with_image.sd = SD_FACTOR_*d;
                     position_with_image.x = x;
                     position_with_image.y = y;
@@ -566,6 +569,11 @@ void PointCloudObjectDetector::calc_position(pcl::PointCloud<pcl::PointXYZRGB>::
     x = sum_x/(double)count;
     y = sum_y/(double)count;
     z = sum_z/(double)count;
+}
+
+double PointCloudObjectDetector::calc_credibility(double error)
+{
+    return std::exp(-CREDIBILITY_FACTOR_PER_ERROR_*error);
 }
 
 void PointCloudObjectDetector::process()
